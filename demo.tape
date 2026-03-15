@@ -12,8 +12,19 @@ Set Shell "bash"
 Set FontSize 14
 Set Width 1400
 Set Height 700
-Set Theme "Catppuccin Mocha"
+Set Theme "GruvboxDarkHard"
 Set PlaybackSpeed 0.75
+
+# ── clean up prompt (hidden from recording) ──────────────────────────────────
+
+Hide
+Type "export PS1='> '"
+Enter
+Sleep 200ms
+Type "clear"
+Enter
+Sleep 300ms
+Show
 
 # ── help ─────────────────────────────────────────────────────────────────────
 
@@ -24,8 +35,11 @@ Sleep 3s
 
 # ── run the TUI ──────────────────────────────────────────────────────────────
 
-Ctrl+L
+Hide
+Type "clear"
+Enter
 Sleep 300ms
+Show
 
 Type "go-test-tui"
 Sleep 300ms
@@ -49,7 +63,7 @@ Sleep 600ms
 # Filter
 Type "/"
 Sleep 300ms
-Type "Test"
+Type "Output"
 Sleep 800ms
 Escape
 Sleep 500ms
