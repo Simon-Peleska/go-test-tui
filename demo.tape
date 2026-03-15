@@ -1,6 +1,7 @@
 # demo.tape — records a go-test-tui session as a GIF.
 #
-# Run from a Go project directory that has tests:
+# Run with the binary and Go in PATH:
+#   export PATH=$PWD/bin:$PATH
 #   vhs demo.tape
 #
 # Output: demo.gif (update README.md to reference it)
@@ -9,8 +10,8 @@ Output demo.gif
 
 Set Shell "bash"
 Set FontSize 14
-Set Width 160
-Set Height 44
+Set Width 1400
+Set Height 700
 Set Theme "Catppuccin Mocha"
 Set PlaybackSpeed 0.75
 

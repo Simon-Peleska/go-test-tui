@@ -72,8 +72,10 @@ go-test-tui -- -run TestFoo -count 2 -parallel 4
 |------|---------|
 | `main.go` | Entry point, TUI model, `Update`/`View`, test runner goroutine, `printHelp` |
 | `report.go` | `list` subcommand, `findTestLocation` (go/parser), `runListReport` |
+| `report_test.go` | Unit tests for `findTestLocation` and output-dir helpers |
 | `completions.bash` | Bash completions for the `go-test-tui` binary |
 | `demo.tape` | VHS tape for recording the demo GIF |
+| `demo.gif` | Recorded demo (regenerate with `vhs demo.tape`) |
 | `flake.nix` | Nix flake: binary build, dev shell — **update `vendorHash` after changing Go deps** |
 | `README.md` | User-facing docs — **update if flags, subcommands, or key behaviours change** |
 
