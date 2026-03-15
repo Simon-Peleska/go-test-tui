@@ -59,6 +59,7 @@ go-test-tui -- -run TestFoo -count 2 -parallel 4
 
 | Command | Description |
 |---------|-------------|
+| `run` | Run tests, stream output to terminal (no TUI), same log files as TUI |
 | `help` | Print usage |
 | `list` | List tests from the last run |
 

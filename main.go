@@ -883,7 +883,7 @@ type goTestEvent struct {
 	Elapsed float64 `json:"Elapsed"`
 }
 
-func runTests(ctx context.Context, p *tea.Program, cfg config, runDir string) int {
+func runTests(ctx context.Context, send func(testEventMsg), cfg config, runDir string) int {
 	args := []string{"test", "-json", "-v", "./..."}
 	args = append(args, cfg.goTestArgs...)
 
@@ -892,7 +892,7 @@ func runTests(ctx context.Context, p *tea.Program, cfg config, runDir string) in
 
 	r, w, err := os.Pipe()
 	if err != nil {
-		p.Send(testEventMsg{action: "output", output: "pipe error: " + err.Error()})
+		send(testEventMsg{action: "output", output: "pipe error: " + err.Error()})
 		return 1
 	}
 	cmd.Stdout = w
@@ -906,7 +906,7 @@ func runTests(ctx context.Context, p *tea.Program, cfg config, runDir string) in
 		if jsonLog != nil {
 			jsonLog.Close()
 		}
-		p.Send(testEventMsg{action: "output", output: "start error: " + err.Error()})
+		send(testEventMsg{action: "output", output: "start error: " + err.Error()})
 		return 1
 	}
 	w.Close()
@@ -945,7 +945,7 @@ func runTests(ctx context.Context, p *tea.Program, cfg config, runDir string) in
 
 		var evt goTestEvent
 		if err := json.Unmarshal([]byte(line), &evt); err != nil {
-			p.Send(testEventMsg{action: "output", output: line})
+			send(testEventMsg{action: "output", output: line})
 			continue
 		}
 
@@ -960,11 +960,11 @@ func runTests(ctx context.Context, p *tea.Program, cfg config, runDir string) in
 					f.WriteString(out + "\n")
 				}
 			}
-			p.Send(testEventMsg{action: "output", test: evt.Test, output: out})
+			send(testEventMsg{action: "output", test: evt.Test, output: out})
 
 		case "run", "pass", "fail", "skip":
 			if evt.Test != "" {
-				p.Send(testEventMsg{action: evt.Action, test: evt.Test})
+				send(testEventMsg{action: evt.Action, test: evt.Test})
 			}
 		}
 	}
@@ -985,6 +985,75 @@ func runTests(ctx context.Context, p *tea.Program, cfg config, runDir string) in
 	return exitCode
 }
 
+// ─── Plain runner ─────────────────────────────────────────────────────────────
+
+// runPlain implements the "run" subcommand: same log splitting as the TUI but
+// streams output directly to stdout and exits with go test's exit code.
+func runPlain(rawArgs []string) {
+	var cfg config
+	var goTestArgs []string
+	for i, a := range rawArgs {
+		if a == "--" {
+			goTestArgs = rawArgs[i+1:]
+			rawArgs = rawArgs[:i]
+			break
+		}
+	}
+
+	fset := flag.NewFlagSet("run", flag.ExitOnError)
+	fset.StringVar(&cfg.outputDir, "output-dir", "./test_logs", "Directory for log files")
+	fset.BoolVar(&cfg.keepLogs, "keep-logs", false, "Keep logs even if tests pass")
+	fset.BoolVar(&cfg.clean, "clean", false, "Remove old logs before running")
+	_ = fset.Parse(rawArgs)
+	cfg.goTestArgs = goTestArgs
+
+	if err := os.MkdirAll(cfg.outputDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "error creating output dir: %v\n", err)
+		os.Exit(1)
+	}
+
+	if cfg.clean {
+		entries, _ := os.ReadDir(cfg.outputDir)
+		for _, e := range entries {
+			os.RemoveAll(filepath.Join(cfg.outputDir, e.Name()))
+		}
+	}
+
+	timestamp := time.Now().Format("20060102_150405")
+	runDir := filepath.Join(cfg.outputDir, "run_"+timestamp)
+	if err := os.MkdirAll(runDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "error creating run dir: %v\n", err)
+		os.Exit(1)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	send := func(msg testEventMsg) {
+		if msg.action == "output" {
+			fmt.Println(msg.output)
+		}
+	}
+
+	exitCode := runTests(ctx, send, cfg, runDir)
+
+	if exitCode == 0 && !cfg.keepLogs {
+		entries, _ := os.ReadDir(runDir)
+		for _, e := range entries {
+			if e.IsDir() {
+				os.RemoveAll(filepath.Join(runDir, e.Name()))
+			}
+		}
+		os.Remove(filepath.Join(runDir, "test_output.json"))
+	}
+
+	latestLink := filepath.Join(cfg.outputDir, "latest")
+	os.Remove(latestLink)
+	os.Symlink("run_"+timestamp, latestLink)
+
+	os.Exit(exitCode)
+}
+
 // ─── Help ─────────────────────────────────────────────────────────────────────
 
 func printHelp() {
@@ -995,6 +1064,7 @@ Usage:
   go-test-tui <command> [flags]
 
 Commands:
+  run     Run tests, stream output to terminal (no TUI)
   list    List tests from the last run
   help    Show this help
 
@@ -1036,6 +1106,9 @@ func main() {
 	// Subcommand dispatch.
 	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
 		switch os.Args[1] {
+		case "run":
+			runPlain(os.Args[2:])
+			return
 		case "list":
 			runListReport(os.Args[2:])
 			return
@@ -1091,7 +1164,7 @@ func main() {
 	p := tea.NewProgram(m)
 
 	go func() {
-		exitCode := runTests(ctx, p, cfg, runDir)
+		exitCode := runTests(ctx, func(msg testEventMsg) { p.Send(msg) }, cfg, runDir)
 
 		if exitCode == 0 && !cfg.keepLogs {
 			entries, _ := os.ReadDir(runDir)

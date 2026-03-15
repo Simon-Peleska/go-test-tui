@@ -18,7 +18,7 @@ _go_test_tui() {
     for (( i=1; i<cword; i++ )); do
         case "${words[i]}" in
             --) after_dashdash=1; break ;;
-            list|help) subcommand="${words[i]}" ;;
+            list|run|help) subcommand="${words[i]}" ;;
         esac
     done
 
@@ -30,6 +30,18 @@ _go_test_tui() {
             -count|-parallel|-timeout|-bench|-benchtime|-coverprofile|-vet) return ;;
         esac
         COMPREPLY=($(compgen -W "$go_flags" -- "$cur"))
+        return
+    fi
+
+    # run subcommand: same flags as top-level + --
+    if [[ "$subcommand" == "run" ]]; then
+        case "$prev" in
+            -output-dir)
+                COMPREPLY=($(compgen -d -- "$cur"))
+                return
+                ;;
+        esac
+        COMPREPLY=($(compgen -W "-output-dir -keep-logs -clean --" -- "$cur"))
         return
     fi
 
@@ -60,7 +72,7 @@ _go_test_tui() {
 
     # Top-level: offer subcommands if no subcommand yet and cur looks like a word
     if [[ "$subcommand" == "" && "$cur" != -* ]]; then
-        COMPREPLY=($(compgen -W "list help" -- "$cur"))
+        COMPREPLY=($(compgen -W "run list help" -- "$cur"))
         [[ ${#COMPREPLY[@]} -gt 0 ]] && return
     fi
 
